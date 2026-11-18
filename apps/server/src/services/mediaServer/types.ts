@@ -247,7 +247,7 @@ export interface MediaLibrary {
   agent?: string;
   /** Plex: scanner identifier */
   scanner?: string;
-  /** Jellyfin: file system locations */
+  /** File system locations configured for the library */
   locations?: string[];
 }
 

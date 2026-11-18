@@ -66,6 +66,21 @@ export function StorageLibrariesTable({ rows, isLoading }: StorageLibrariesTable
           header: t('pages:library.storage.libraries.columns.library'),
           sortFn: 'text',
           meta: { cellClassName: 'font-medium' },
+          cell: ({ row, getValue }) => (
+            <div>
+              <div>{getValue()}</div>
+              {row.original.locations && (
+                <div className="text-muted-foreground mt-1 space-y-1 text-xs font-normal">
+                  {row.original.locations.map((location) => (
+                    <div key={location.path ?? '__unassigned__'} className="break-all">
+                      {location.path ?? t('pages:library.storage.libraries.unassigned')}:{' '}
+                      {formatBytes(location.sizeBytes)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ),
         }),
         ...(multiServer
           ? [

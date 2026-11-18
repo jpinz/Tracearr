@@ -562,6 +562,8 @@
       "copyPath": "Copy file path",
       "libraries": {
         "title": "Libraries",
+        "unassigned": "Unassigned (no matching folder or multi-part file)",
+        "locationsDescription": "Folder sizes reflect indexed media, not drive capacity. Folder locations appear after a library sync.",
         "columns": {
           "library": "Library",
           "share": "Share"

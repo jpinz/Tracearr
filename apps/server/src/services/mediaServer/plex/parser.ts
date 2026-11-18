@@ -1123,6 +1123,11 @@ export function parseLibrary(dir: Record<string, unknown>): MediaLibrary {
     type: parseString(dir.type),
     agent: parseOptionalString(dir.agent),
     scanner: parseOptionalString(dir.scanner),
+    locations: Array.isArray(dir.Location)
+      ? dir.Location.map((location: { path?: unknown }) =>
+          parseOptionalString(location?.path)
+        ).filter((path: string | undefined): path is string => !!path)
+      : undefined,
   };
 }
 

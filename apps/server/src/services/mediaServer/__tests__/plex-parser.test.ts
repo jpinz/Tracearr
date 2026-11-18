@@ -608,6 +608,21 @@ describe('Plex Library Parser', () => {
       expect(library.agent).toBe('tv.plex.agents.movie');
       expect(library.scanner).toBe('Plex Movie');
     });
+
+    it('parses all configured locations', () => {
+      const library = parseLibrary({
+        key: '1',
+        title: 'Movies',
+        type: 'movie',
+        Location: [
+          { id: 8, path: '/mnt/nas-media/Movies' },
+          { id: 1, path: '/mnt/data/movies' },
+          { id: 2 },
+        ],
+      });
+
+      expect(library.locations).toEqual(['/mnt/nas-media/Movies', '/mnt/data/movies']);
+    });
   });
 
   describe('parseLibrariesResponse', () => {

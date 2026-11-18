@@ -352,6 +352,9 @@ export function LibraryStorage() {
           <CardTitle className="text-base font-medium">
             {t('library.storage.libraries.title')}
           </CardTitle>
+          <p className="text-muted-foreground text-sm">
+            {t('library.storage.libraries.locationsDescription')}
+          </p>
         </CardHeader>
         <CardContent>
           <StorageLibrariesTable rows={libraryRows} isLoading={storageMulti.isLoading} />

@@ -2719,6 +2719,8 @@ export interface StorageLibraryRow {
   /** Active items with at least one active version larger than zero bytes */
   itemCount: number;
   sizeBytes: number;
+  /** Current storage by configured root; null path means it could not be assigned. */
+  locations?: Array<{ path: string | null; sizeBytes: number }>;
 }
 
 export interface LibraryStorageResponse {

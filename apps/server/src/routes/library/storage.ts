@@ -205,9 +205,9 @@ export const libraryStorageRoute: FastifyPluginAsync = async (app) => {
 
       const resolvedIds = resolveServerIds(authUser, serverId, serverIds, { strict: false });
 
-      // v2: the response carries libraries[]
+      // v3: libraries include configured folder breakdowns
       const cacheKey = buildLibraryCacheKey(
-        `${REDIS_KEYS.LIBRARY_STORAGE}:v2`,
+        `${REDIS_KEYS.LIBRARY_STORAGE}:v3`,
         serverCacheSegment(resolvedIds),
         cacheSegment,
         tz
@@ -335,9 +335,11 @@ export const libraryStorageRoute: FastifyPluginAsync = async (app) => {
       // versions are sized, the snapshot rule.
       const librariesResult = await db.execute(sql`
         SELECT
+          l.server_id AS "serverId",
           l.library_id AS "libraryId",
           l.name,
           l.media_type AS "mediaType",
+          l.locations,
           COALESCE(sized.item_count, 0)::int AS "itemCount",
           COALESCE(sized.size_bytes, 0)::bigint AS "sizeBytes"
         FROM libraries l
@@ -358,9 +360,66 @@ export const libraryStorageRoute: FastifyPluginAsync = async (app) => {
           ${buildMultiServerFragment(resolvedIds, 'l.server_id')}
         ORDER BY "sizeBytes" DESC, l.name
       `);
-      const libraries: StorageLibraryRow[] = (
-        librariesResult.rows as Array<Omit<StorageLibraryRow, 'sizeBytes'> & { sizeBytes: string }>
-      ).map((row) => ({ ...row, sizeBytes: Number(row.sizeBytes) }));
+      // A version's stored size covers every part, but its stored path is only
+      // the first part's. Multi-part versions therefore cannot be assigned safely.
+      const locationResult = await db.execute(sql`
+        SELECT li.server_id AS "serverId", li.library_id AS "libraryId",
+          matched.path, SUM(v.file_size)::bigint AS "sizeBytes"
+        FROM library_items li
+        JOIN libraries l ON l.server_id = li.server_id AND l.library_id = li.library_id
+        JOIN library_item_versions v
+          ON v.library_item_id = li.id AND v.removed_at IS NULL AND v.file_size > 0
+        LEFT JOIN LATERAL (
+          SELECT roots.path
+          FROM unnest(l.locations) AS roots(path)
+          CROSS JOIN LATERAL (
+            SELECT rtrim(replace(roots.path, chr(92), '/'), '/') AS root,
+              replace(v.file_path, chr(92), '/') AS file
+          ) normalized
+          WHERE v.part_count = 1 AND v.file_path IS NOT NULL AND roots.path <> ''
+            AND CASE
+              WHEN normalized.root ~ '^[A-Za-z]:' OR left(normalized.root, 2) = '//'
+              THEN left(lower(normalized.file), length(normalized.root) + 1) = lower(normalized.root) || '/'
+              ELSE left(normalized.file, length(normalized.root) + 1) = normalized.root || '/'
+            END
+          ORDER BY length(normalized.root) DESC, roots.path
+          LIMIT 1
+        ) matched ON true
+        WHERE li.removed_at IS NULL AND cardinality(l.locations) > 0
+          ${buildMultiServerFragment(resolvedIds, 'li.server_id')}
+        GROUP BY li.server_id, li.library_id, matched.path
+      `);
+      type LocationTotal = {
+        serverId: string;
+        libraryId: string;
+        path: string | null;
+        sizeBytes: string;
+      };
+      const locationTotals = locationResult.rows as LocationTotal[];
+      const libraryRows = librariesResult.rows as Array<
+        Omit<StorageLibraryRow, 'sizeBytes' | 'locations'> & {
+          serverId: string;
+          sizeBytes: string;
+          locations: string[] | null;
+        }
+      >;
+      const libraries: StorageLibraryRow[] = libraryRows.map(
+        ({ serverId: rowServerId, locations, sizeBytes, ...row }) => {
+          if (!locations?.length) return { ...row, sizeBytes: Number(sizeBytes) };
+          const totals = locationTotals.filter(
+            (total) => total.serverId === rowServerId && total.libraryId === row.libraryId
+          );
+          const breakdown: NonNullable<StorageLibraryRow['locations']> = [
+            ...new Set(locations),
+          ].map((path) => ({
+            path,
+            sizeBytes: Number(totals.find((total) => total.path === path)?.sizeBytes ?? 0),
+          }));
+          const unassigned = totals.find((total) => total.path === null);
+          if (unassigned) breakdown.push({ path: null, sizeBytes: Number(unassigned.sizeBytes) });
+          return { ...row, sizeBytes: Number(sizeBytes), locations: breakdown };
+        }
+      );
 
       const current = {
         totalSizeBytes: dedupedBytes ?? latestRow?.total_size_bytes ?? '0',

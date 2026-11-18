@@ -1931,6 +1931,7 @@ export const libraries = pgTable(
     libraryId: varchar('library_id', { length: 100 }).notNull(),
     name: text('name').notNull(),
     mediaType: varchar('media_type', { length: 20 }).notNull(),
+    locations: text('locations').array(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [uniqueIndex('libraries_server_library_unique').on(table.serverId, table.libraryId)]

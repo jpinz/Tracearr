@@ -2862,6 +2862,7 @@ export class LibrarySyncService {
           libraryId: lib.id,
           name: sanitizeText(lib.name),
           mediaType: sanitizeText(lib.type),
+          locations: lib.locations ?? null,
         }))
       )
       .onConflictDoUpdate({
@@ -2869,6 +2870,7 @@ export class LibrarySyncService {
         set: {
           name: sql`excluded.name`,
           mediaType: sql`excluded.media_type`,
+          locations: sql`excluded.locations`,
           updatedAt: new Date(),
         },
       });

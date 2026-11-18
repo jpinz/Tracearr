@@ -80,4 +80,26 @@ describe('StorageLibrariesTable', () => {
 
     expect(cells('Movies')[1]).toBe('photo');
   });
+
+  it('shows configured folders and unassigned bytes under the library', () => {
+    render(
+      <StorageLibrariesTable
+        rows={[
+          row({
+            locations: [
+              { path: '/mnt/nas-media/Movies', sizeBytes: 400 * GB },
+              { path: '/mnt/data/movies', sizeBytes: 90 * GB },
+              { path: null, sizeBytes: 10 * GB },
+            ],
+          }),
+        ]}
+      />
+    );
+
+    expect(screen.getByText('/mnt/nas-media/Movies: 400 GB')).toBeInTheDocument();
+    expect(screen.getByText('/mnt/data/movies: 90 GB')).toBeInTheDocument();
+    expect(
+      screen.getByText('pages:library.storage.libraries.unassigned: 10 GB')
+    ).toBeInTheDocument();
+  });
 });

@@ -114,4 +114,62 @@ describe('storage per-library table', () => {
       { libraryId: '4', name: 'Music', mediaType: 'artist', itemCount: 0, sizeBytes: 0 },
     ]);
   });
+
+  it('assigns versions to the most specific configured folder without guessing multipart paths', async () => {
+    const server = await createTestServer({ type: 'plex' });
+    await db.insert(libraries).values({
+      serverId: server.id,
+      libraryId: '1',
+      name: 'Movies',
+      mediaType: 'movie',
+      locations: [
+        '/mnt/nas-media/Movies',
+        '/mnt/data/movies',
+        '/mnt/data/movies/child',
+        'D:\\Movies',
+      ],
+    });
+    const item = await createTestLibraryItem({
+      serverId: server.id,
+      libraryId: '1',
+      withoutVersion: true,
+    });
+    for (const version of [
+      { filePath: '/mnt/nas-media/Movies/film.mkv', fileSize: 10 },
+      { filePath: '/mnt/data/movies/film.mkv', fileSize: 20 },
+      { filePath: '/mnt/data/movies/child/film.mkv', fileSize: 30 },
+      { filePath: 'd:\\movies\\film.mkv', fileSize: 40 },
+      { filePath: '/mnt/data/movies-extra/film.mkv', fileSize: 50 },
+      { filePath: '/mnt/data/movies/part1.mkv', fileSize: 60, partCount: 2 },
+      { filePath: null, fileSize: 70 },
+    ]) {
+      await createTestLibraryItemVersion({ libraryItemId: item.id, ...version });
+    }
+
+    const app = await buildApp({
+      userId: randomUUID(),
+      username: 'owner',
+      role: 'owner',
+      serverIds: [],
+    });
+    const response = await app.inject({
+      method: 'GET',
+      url: `/library/storage?serverId=${server.id}`,
+    });
+    await app.close();
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json<LibraryStorageResponse>().libraries[0]).toMatchObject({
+      libraryId: '1',
+      itemCount: 1,
+      sizeBytes: 280,
+      locations: [
+        { path: '/mnt/nas-media/Movies', sizeBytes: 10 },
+        { path: '/mnt/data/movies', sizeBytes: 20 },
+        { path: '/mnt/data/movies/child', sizeBytes: 30 },
+        { path: 'D:\\Movies', sizeBytes: 40 },
+        { path: null, sizeBytes: 180 },
+      ],
+    });
+  });
 });
